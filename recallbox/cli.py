@@ -5,7 +5,8 @@ from typing import Any
 
 import typer
 
-from .settings import settings
+from .settings import settings as _pydantic_settings
+from .config import get_config, ConfigError
 
 app = typer.Typer()
 
@@ -28,7 +29,13 @@ async def test_data() -> None:
     from . import __version__
     from .services.db import get_session, test_data
 
-    typer.echo(f"{settings.project_name} - {__version__}")
+    # Try to use YAML config as single source of truth; fall back to pydantic settings
+    try:
+        project = get_config().project_name
+    except ConfigError:
+        project = _pydantic_settings.project_name
+
+    typer.echo(f"{project} - {__version__}")
 
     async with get_session() as session:
         await test_data(session)
@@ -36,16 +43,26 @@ async def test_data() -> None:
     typer.echo("Development data installed successfully.")
 
 
-@app.command(help=f"Display the current installed version of {settings.project_name}.")
+@app.command(help=f"Display the current installed version of {_pydantic_settings.project_name}.")
 def version() -> None:
     from . import __version__
 
-    typer.echo(f"{settings.project_name} - {__version__}")
+    try:
+        project = get_config().project_name
+    except ConfigError:
+        project = _pydantic_settings.project_name
+
+    typer.echo(f"{project} - {__version__}")
 
 
 @app.command(help="Display a friendly greeting.")
 def hello() -> None:
-    typer.echo(f"Hello from {settings.project_name}!")
+    try:
+        project = get_config().project_name
+    except ConfigError:
+        project = _pydantic_settings.project_name
+
+    typer.echo(f"Hello from {project}!")
 
 
 if __name__ == "__main__":

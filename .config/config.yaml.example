@@ -1,0 +1,26 @@
+# Example configuration for recallbox
+# This file is for developers to copy into their project root as `config.yaml`
+# or use as a reference. Do NOT store secrets here; use the `.env` file.
+
+project_name: "recallbox"
+debug: false
+
+# Models
+embedding_model: "text-embedding-3-small"
+chat_model: "gpt-chat-1"
+
+retrieval:
+  # Number of top results to return for a retrieval query
+  top_k: 10
+
+backup:
+  # Whether automatic backups are enabled
+  enabled: false
+  # Passphrase is a secret: set via .env as BACKUP_PASSPHRASE and never commit it
+  # passphrase: ""  # do not set here
+
+# Secrets (set in .env):
+# OPENROUTER_API_KEY=
+# S3_ACCESS_KEY=
+# S3_SECRET_KEY=
+# BACKUP_PASSPHRASE=

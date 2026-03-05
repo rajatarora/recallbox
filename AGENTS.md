@@ -393,3 +393,9 @@ if __name__ == "__main__":
 * A `.env.example` file must exist as a template for new developers to create their `.env` file and learn what variables to set.
 * Python projects must always use virtual environments at `.venv` in the project root. This must be activated before running tests.
 * Use `uv` for Python version management and package installation instead of pyenv and pip for significantly faster installations and automatic Python version handling.
+
+### Configuration Files & Secrets
+- Use a single source of truth config.yaml in the project working directory for application configuration and pydantic validation.
+- .env is optional and may be present for secrets. Load .env once at startup using python-dotenv; missing .env is not an error.
+- Prefer pydantic-settings[yaml] (or PyYAML + pydantic) to merge YAML and env sources; add pydantic-settings[yaml] and python-dotenv to project dependencies when you use YAML+.env.
+- Secrets (API keys, S3 creds, passphrases) must be represented by pydantic.SecretStr/SecretBytes in models and read into a private module-level cache once. Never log or print secret values.
