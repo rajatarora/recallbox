@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TYPE_CHECKING
 
 import httpx
 import numpy as np
@@ -40,15 +40,25 @@ class OpenRouterClient:
         embedding_model: str,
         chat_model: str,
         base_url: str | None = None,
+        config: object | None = None,
         max_retries: int = 3,
         base_retry_wait: float = 1.0,
     ) -> None:
         self._api_key = api_key
         self.embedding_model = embedding_model
         self.chat_model = chat_model
-        # Prefer explicitly provided base_url; otherwise read from project config
+        # Prefer explicitly provided base_url; otherwise use provided config or
+        # fall back to reading the global project config. This allows callers
+        # (and tests) to provide a Config object to avoid importing the global
+        # config singleton and for easier dependency injection.
         if base_url:
             self.base_url = base_url.rstrip("/")
+        elif config is not None:
+            # Accept any object with an `openrouter_base_url` attribute
+            try:
+                self.base_url = config.openrouter_base_url.rstrip("/")
+            except Exception:
+                self.base_url = str(config).rstrip("/")
         else:
             try:
                 from recallbox.config import get_config
