@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Dict, List, Tuple, TYPE_CHECKING
+from typing import Dict, List, Tuple
 
 import httpx
 import numpy as np
 from pydantic import BaseModel
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class OpenRouterClient:
         api_key: str,
         embedding_model: str,
         chat_model: str,
+        memory_prompt_path: str,
         base_url: str | None = None,
         config: object | None = None,
         max_retries: int = 3,
@@ -70,6 +72,10 @@ class OpenRouterClient:
                 self.base_url = "https://openrouter.ai/api/v1"
         self.max_retries = max_retries
         self.base_retry_wait = base_retry_wait
+        # Path to a prompt template file used by evaluate_memory. The file
+        # must contain placeholders {user} and {assistant} which will be
+        # replaced using str.format(). This is required (no fallback).
+        self.memory_prompt_path = memory_prompt_path
 
         # httpx client will be created per request to keep things simple in tests
 
@@ -188,7 +194,20 @@ class OpenRouterClient:
         return content
 
     async def evaluate_memory(self, user: str, assistant: str) -> Tuple[bool, str]:
-        prompt = f'Evaluate the memory. User: {user}\nAssistant: {assistant}\nRespond with JSON: {{"ok": bool, "explanation": str}}'
+        # Always load the prompt template from the configured file. No
+        # fallback is provided; failure to read or format the template will
+        # raise MemoryEvaluationError.
+        try:
+            tmpl = Path(self.memory_prompt_path).read_text(encoding="utf-8")
+        except Exception as e:
+            raise MemoryEvaluationError("Failed to read memory prompt file") from e
+        try:
+            # Use simple placeholder replacement for {user} and {assistant}
+            # so templates can include other braces (for JSON) without
+            # needing to escape them for str.format().
+            prompt = tmpl.replace("{user}", user).replace("{assistant}", assistant)
+        except Exception as e:
+            raise MemoryEvaluationError("Failed to format memory prompt template") from e
         messages = [{"role": "user", "content": prompt}]
         resp_text = await self.chat(messages)
 

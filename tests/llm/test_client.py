@@ -39,7 +39,7 @@ async def test_embeddings_success_and_normalization(monkeypatch):
         return original_ac(transport=transport, *args, **kwargs)
 
     monkeypatch.setattr(httpx, "AsyncClient", factory)
-    c = OpenRouterClient("key", "emb-model", "chat-model")
+    c = OpenRouterClient("key", "emb-model", "chat-model", "/dev/null")
     start = time.time()
     vecs = await c.embed(["a", "b"])
     elapsed = time.time() - start
@@ -68,7 +68,7 @@ async def test_embeddings_retry_on_5xx(monkeypatch):
         return original_ac(transport=transport, *args, **kwargs)
 
     monkeypatch.setattr(httpx, "AsyncClient", factory)
-    c = OpenRouterClient("key", "emb-model", "chat-model", max_retries=3, base_retry_wait=0.01)
+    c = OpenRouterClient("key", "emb-model", "chat-model", "/dev/null", max_retries=3, base_retry_wait=0.01)
     await c.embed(["x"])
     assert calls["n"] == 4
 
@@ -90,7 +90,7 @@ async def test_chat_retry_after_respected(monkeypatch):
         return original_ac(transport=transport, *args, **kwargs)
 
     monkeypatch.setattr(httpx, "AsyncClient", factory)
-    c = OpenRouterClient("key", "emb", "chat")
+    c = OpenRouterClient("key", "emb", "chat", "/dev/null")
     start = time.time()
     res = await c.chat([{"role": "user", "content": "hello"}])
     elapsed = time.time() - start
@@ -100,7 +100,7 @@ async def test_chat_retry_after_respected(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_evaluate_memory_bad_json(monkeypatch):
+async def test_evaluate_memory_bad_json(monkeypatch, tmp_path):
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"choices": [{"message": {"content": "not a json"}}]})
 
@@ -111,6 +111,41 @@ async def test_evaluate_memory_bad_json(monkeypatch):
         return original_ac(transport=transport, *args, **kwargs)
 
     monkeypatch.setattr(httpx, "AsyncClient", factory)
-    c = OpenRouterClient("k", "emb", "chat")
+    # create a minimal prompt template file required by the client
+    prompt_file = tmp_path / "memory_prompt.txt"
+    prompt_file.write_text(
+        'Evaluate memory for {user}. Assistant said: {assistant}\nRespond with JSON: {"ok": bool, "explanation": str}'
+    )
+    c = OpenRouterClient("k", "emb", "chat", str(prompt_file))
     with pytest.raises(MemoryEvaluationError):
         await c.evaluate_memory("u", "a")
+
+
+@pytest.mark.asyncio
+async def test_evaluate_memory_with_prompt_file(monkeypatch, tmp_path):
+    # Create a temporary prompt template file with placeholders
+    prompt_file = tmp_path / "memory_prompt.txt"
+    prompt_file.write_text(
+        'Evaluate memory for {user}. Assistant said: {assistant}\nRespond with JSON: {"ok": bool, "explanation": str}'
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode()) if request.content else {}
+        messages = body.get("messages") or []
+        # Ensure the template was formatted into the outgoing message
+        assert messages and "alice" in messages[0]["content"] and "bot" in messages[0]["content"]
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": '{"ok": true, "explanation": "looks good"}'}}]}
+        )
+
+    transport = DelayedMockTransport(handler, delay=0.0)
+    original_ac = httpx.AsyncClient
+
+    def factory(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        return original_ac(transport=transport, *args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", factory)
+    c = OpenRouterClient("k", "emb", "chat", str(prompt_file))
+    ok, explanation = await c.evaluate_memory("alice", "bot")
+    assert ok is True
+    assert explanation == "looks good"
