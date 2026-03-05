@@ -39,14 +39,25 @@ class OpenRouterClient:
         api_key: str,
         embedding_model: str,
         chat_model: str,
-        base_url: str = "https://openrouter.ai/api/v1",
+        base_url: str | None = None,
         max_retries: int = 3,
         base_retry_wait: float = 1.0,
     ) -> None:
         self._api_key = api_key
         self.embedding_model = embedding_model
         self.chat_model = chat_model
-        self.base_url = base_url.rstrip("/")
+        # Prefer explicitly provided base_url; otherwise read from project config
+        if base_url:
+            self.base_url = base_url.rstrip("/")
+        else:
+            try:
+                from recallbox.config import get_config
+
+                cfg = get_config()
+                self.base_url = cfg.openrouter_base_url.rstrip("/")
+            except Exception:
+                # Fallback to sensible default if config is unavailable
+                self.base_url = "https://openrouter.ai/api/v1"
         self.max_retries = max_retries
         self.base_retry_wait = base_retry_wait
 
@@ -59,7 +70,7 @@ class OpenRouterClient:
         for attempt in range(self.max_retries + 1):
             try:
                 headers = {"Authorization": f"Bearer {self._api_key}"}
-                async with httpx.AsyncClient(http2=True, timeout=10.0) as client:
+                async with httpx.AsyncClient(http2=False, timeout=10.0) as client:
                     resp = await client.request(method, url, json=json_data, headers=headers)
 
                 if resp.status_code == 429:

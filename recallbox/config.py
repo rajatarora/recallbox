@@ -44,6 +44,10 @@ class Config(BaseModel):
     debug: bool = Field(default=False)
     embedding_model: str
     chat_model: str
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        description="Base URL for the OpenRouter API",
+    )
     retrieval: RetrievalSettings = RetrievalSettings()
     backup: BackupSettings = BackupSettings()
 
