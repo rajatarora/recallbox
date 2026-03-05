@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=67.0", "setuptools_scm[toml]>=7.1"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+readme = { file = ["README.md"] }
+
+[tool.setuptools.package-data]
+recallbox = ["py.typed"]
+
+[tool.setuptools_scm]
+fallback_version = "0.0.0-dev"
+write_to = "recallbox/_version.py"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "docs*"]
+
+[project]
+authors = [{ "name" = "Rajat Arora" }]
+description = "A command-line second brain that remembers your memories"
+dynamic = ["version"]
+license = { "file" = "LICENSE" }
+name = "recallbox"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+dependencies = [
+  "SQLAlchemy",
+  "aiosqlite",
+  "alembic",
+  "asyncpg",
+  "fastapi",
+  "psycopg2-binary",
+  "pydantic~=2.0",
+  "pydantic-settings",
+  "typer",
+  "uvicorn[standard]",
+]
+
+[dependency-groups]
+dev = [
+  "build",
+  "dapperdata",
+  "glom",
+  "greenlet",
+  "httpx",
+  "mypy",
+  "paracelsus",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "pytest-pretty",
+  "ruamel.yaml",
+  "ruff",
+  "tombi",
+  "uv"
+]
+
+[project.scripts]
+recallbox = "recallbox.cli:app"
+
+[tool.ruff]
+exclude = [".venv", "./recallbox/_version.py"]
+line-length = 120
+
+[tool.coverage.run]
+concurrency = ["thread", "greenlet"]
+omit = [
+  "./recallbox/_version.py",
+  "./recallbox/__init__.py",
+  "./tests/*",
+]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.mypy]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = false
+disallow_untyped_defs = true
+no_implicit_optional = true
+plugins = ["pydantic.mypy"]
+strict_optional = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.uv]
+exclude-newer = "1 week"
