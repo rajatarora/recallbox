@@ -399,3 +399,6 @@ if __name__ == "__main__":
 - .env is optional and may be present for secrets. Load .env once at startup using python-dotenv; missing .env is not an error.
 - Prefer pydantic-settings[yaml] (or PyYAML + pydantic) to merge YAML and env sources; add pydantic-settings[yaml] and python-dotenv to project dependencies when you use YAML+.env.
 - Secrets (API keys, S3 creds, passphrases) must be represented by pydantic.SecretStr/SecretBytes in models and read into a private module-level cache once. Never log or print secret values.
+
+### Committing
+- No agent shall make any git commits. They will be done by the user after proper code review. 

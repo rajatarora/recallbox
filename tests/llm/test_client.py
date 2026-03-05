@@ -8,8 +8,6 @@ import numpy as np
 import pytest
 
 from recallbox.llm.client import (
-    ChatError,
-    EmbeddingError,
     MemoryEvaluationError,
     OpenRouterClient,
 )
@@ -29,24 +27,27 @@ class DelayedMockTransport(httpx.MockTransport):
 @pytest.mark.asyncio
 async def test_embeddings_success_and_normalization(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
-        body = request.json()
+        body = json.loads(request.content.decode()) if request.content else {}
         inputs = body.get("input")
         data = [{"embedding": [1.0, 0.0, 0.0]} for _ in inputs]
         return httpx.Response(200, json={"data": data})
 
     transport = DelayedMockTransport(handler, delay=0.1)
+    original_ac = httpx.AsyncClient
 
-    async with httpx.AsyncClient(transport=transport) as client:
-        monkeypatch.setattr("httpx.AsyncClient", lambda *args, **kwargs: client)
-        c = OpenRouterClient("key", "emb-model", "chat-model")
-        start = time.time()
-        vecs = await c.embed(["a", "b"])
-        elapsed = time.time() - start
-        assert elapsed < 0.5
-        assert len(vecs) == 2
-        for v in vecs:
-            assert isinstance(v, np.ndarray)
-            assert np.isclose(np.linalg.norm(v), 1.0)
+    def factory(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        return original_ac(transport=transport, *args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", factory)
+    c = OpenRouterClient("key", "emb-model", "chat-model")
+    start = time.time()
+    vecs = await c.embed(["a", "b"])
+    elapsed = time.time() - start
+    assert elapsed < 0.5
+    assert len(vecs) == 2
+    for v in vecs:
+        assert isinstance(v, np.ndarray)
+        assert np.isclose(np.linalg.norm(v), 1.0)
 
 
 @pytest.mark.asyncio
@@ -61,12 +62,15 @@ async def test_embeddings_retry_on_5xx(monkeypatch):
         return httpx.Response(200, json={"data": data})
 
     transport = DelayedMockTransport(handler, delay=0.0)
+    original_ac = httpx.AsyncClient
 
-    async with httpx.AsyncClient(transport=transport) as client:
-        monkeypatch.setattr("httpx.AsyncClient", lambda *args, **kwargs: client)
-        c = OpenRouterClient("key", "emb-model", "chat-model", max_retries=3, base_retry_wait=0.01)
-        vecs = await c.embed(["x"])
-        assert calls["n"] == 4
+    def factory(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        return original_ac(transport=transport, *args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", factory)
+    c = OpenRouterClient("key", "emb-model", "chat-model", max_retries=3, base_retry_wait=0.01)
+    await c.embed(["x"])
+    assert calls["n"] == 4
 
 
 @pytest.mark.asyncio
@@ -80,16 +84,19 @@ async def test_chat_retry_after_respected(monkeypatch):
         return httpx.Response(200, json={"choices": [{"message": {"content": '{"ok": true, "explanation": "ok"}'}}]})
 
     transport = DelayedMockTransport(handler, delay=0.0)
+    original_ac = httpx.AsyncClient
 
-    async with httpx.AsyncClient(transport=transport) as client:
-        monkeypatch.setattr("httpx.AsyncClient", lambda *args, **kwargs: client)
-        c = OpenRouterClient("key", "emb", "chat")
-        start = time.time()
-        res = await c.chat([{"role": "user", "content": "hello"}])
-        elapsed = time.time() - start
-        # Should have waited about 1 second due to Retry-After
-        assert elapsed >= 1.0
-        assert json.loads(res)["ok"] is True
+    def factory(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        return original_ac(transport=transport, *args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", factory)
+    c = OpenRouterClient("key", "emb", "chat")
+    start = time.time()
+    res = await c.chat([{"role": "user", "content": "hello"}])
+    elapsed = time.time() - start
+    # Should have waited about 1 second due to Retry-After
+    assert elapsed >= 1.0
+    assert json.loads(res)["ok"] is True
 
 
 @pytest.mark.asyncio
@@ -98,9 +105,12 @@ async def test_evaluate_memory_bad_json(monkeypatch):
         return httpx.Response(200, json={"choices": [{"message": {"content": "not a json"}}]})
 
     transport = DelayedMockTransport(handler, delay=0.0)
+    original_ac = httpx.AsyncClient
 
-    async with httpx.AsyncClient(transport=transport) as client:
-        monkeypatch.setattr("httpx.AsyncClient", lambda *args, **kwargs: client)
-        c = OpenRouterClient("k", "emb", "chat")
-        with pytest.raises(MemoryEvaluationError):
-            await c.evaluate_memory("u", "a")
+    def factory(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        return original_ac(transport=transport, *args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", factory)
+    c = OpenRouterClient("k", "emb", "chat")
+    with pytest.raises(MemoryEvaluationError):
+        await c.evaluate_memory("u", "a")

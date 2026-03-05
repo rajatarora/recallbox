@@ -29,6 +29,8 @@ dependencies = [
   "alembic",
   "asyncpg",
   "fastapi",
+  "httpx>=0.28.1",
+  "numpy>=2.2.6",
   "psycopg2-binary",
   "pydantic~=2.0",
   "pydantic-settings",

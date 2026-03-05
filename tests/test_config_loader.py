@@ -1,7 +1,5 @@
 import os
 from pathlib import Path
-import stat
-import tempfile
 import pytest
 
 from recallbox import config
@@ -99,7 +97,7 @@ chat_model: "gpt-chat"
     for k in config._SECRET_NAMES:
         os.environ.pop(k, None)
 
-    cfg = config.get_config()
+    config.get_config()
     secrets = config._read_secrets_copy()
     # Missing secrets should be empty strings
     for name in config._SECRET_NAMES:
@@ -129,7 +127,7 @@ chat_model: "gpt-chat"
         env.unlink()
 
     # Load config; should not raise but should emit a warning about insecure permissions
-    cfg = config.get_config()
+    config.get_config()
     assert any(
         "insecure_permissions" in rec.getMessage() or "insecure_permissions" in rec.message for rec in caplog.records
     )
