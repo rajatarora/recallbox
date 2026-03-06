@@ -1,4 +1,3 @@
-
 from recallbox.cli import syncify
 
 

@@ -53,8 +53,6 @@ class FakeAsyncClient:
         return self._resp
 
 
-
-
 @pytest.mark.asyncio
 async def test_request_429_no_retry_after_raises(monkeypatch):
     def factory(*args, **kwargs):
