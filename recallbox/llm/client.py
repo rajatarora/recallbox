@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import httpx
 import numpy as np
@@ -56,10 +56,12 @@ class OpenRouterClient:
         if base_url:
             self.base_url = base_url.rstrip("/")
         elif config is not None:
-            # Accept any object with an `openrouter_base_url` attribute
-            try:
-                self.base_url = config.openrouter_base_url.rstrip("/")
-            except Exception:
+            # Accept any object with an `openrouter_base_url` attribute.
+            # Use getattr to avoid mypy attr-defined errors on plain `object`.
+            val = getattr(config, "openrouter_base_url", None)
+            if isinstance(val, str):
+                self.base_url = val.rstrip("/")
+            else:
                 self.base_url = str(config).rstrip("/")
         else:
             try:
@@ -79,7 +81,7 @@ class OpenRouterClient:
 
         # httpx client will be created per request to keep things simple in tests
 
-    async def _request_with_retry(self, method: str, path: str, json_data: dict) -> dict:
+    async def _request_with_retry(self, method: str, path: str, json_data: dict) -> Any:
         url = f"{self.base_url}{path}"
         last_exc: Exception | None = None
 
@@ -93,10 +95,15 @@ class OpenRouterClient:
                     retry_after = resp.headers.get("Retry-After")
                     if retry_after is not None:
                         try:
-                            wait = int(retry_after)
-                        except ValueError:
-                            wait = float(retry_after)
-                        logger.warning("Rate limited, sleeping %s seconds", wait, extra={"component": "openrouter"})
+                            wait: float = float(retry_after)
+                        except Exception:
+                            # Fall back to configured base retry wait if parsing fails
+                            wait = float(self.base_retry_wait)
+                        logger.warning(
+                            "Rate limited, sleeping %s seconds",
+                            wait,
+                            extra={"component": "openrouter"},
+                        )
                         await asyncio.sleep(wait)
                         continue
                     # no Retry-After, fall through to raise
@@ -191,7 +198,14 @@ class OpenRouterClient:
         if content is None:
             raise ChatError("No assistant content in response")
 
-        return content
+        # Ensure we always return a str.
+        if isinstance(content, str):
+            return content
+        try:
+            return json.dumps(content)
+        except Exception:
+            # Fallback to generic string cast
+            return str(content)
 
     async def evaluate_memory(self, user: str, assistant: str) -> Tuple[bool, str]:
         # Always load the prompt template from the configured file. No

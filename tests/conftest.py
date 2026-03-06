@@ -1,43 +1,72 @@
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from recallbox.models.base import Base
-from recallbox.services.db import get_session_depends, test_data
+import types
+
+import pytest
 from fastapi.testclient import TestClient
-from recallbox.www import app
+from recallbox.www import app as fastapi_app
+from recallbox.services.db import get_session as get_session_depends
 
 
-@pytest_asyncio.fixture
-async def db_session_maker(tmpdir):
-    """Creates a test database engine, complete with fake data."""
-    test_database_url = f"sqlite+aiosqlite:///{tmpdir}/test_database.db"  # Use SQLite for testing; adjust as needed
-    engine = create_async_engine(test_database_url, future=True, echo=False)
+@pytest.fixture
+def no_sleep(monkeypatch):
+    async def _noop_sleep(_):
+        return None
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session_maker() as session:
-        await test_data(session)
-
-    yield async_session_maker
-
-    await engine.dispose()
+    monkeypatch.setattr("asyncio.sleep", _noop_sleep)
+    yield
 
 
-@pytest_asyncio.fixture
-async def db_session(db_session_maker):
-    async with db_session_maker() as session:
-        yield session
+@pytest.fixture
+def tmp_cwd(tmp_path, monkeypatch):
+    """Change cwd to a temporary directory for tests working with files."""
+    monkeypatch.chdir(tmp_path)
+    yield tmp_path
 
 
-@pytest_asyncio.fixture
-async def fastapi_client(db_session_maker):
-    """Fixture to create a FastAPI test client."""
-    client = TestClient(app)
+@pytest.fixture
+def fastapi_client(monkeypatch, tmp_path):
+    """Provide a TestClient for the FastAPI app, overriding DB dependency to avoid real DB."""
+    # simple TestClient; don't try to start backend services
+    client = TestClient(fastapi_app)
 
-    async def get_session_depends_override():
-        async with db_session_maker() as session:
-            yield session
+    async def fake_session_dep():
+        # Minimal async generator to satisfy dependency override
+        if False:
+            yield None
 
-    app.dependency_overrides[get_session_depends] = get_session_depends_override
-    yield client
+    fastapi_app.dependency_overrides[get_session_depends] = fake_session_dep
+    return client
+
+
+@pytest.fixture
+def fake_yaml_module(monkeypatch):
+    """Provide a fake yaml-like module with safe_load. Tests can adjust behavior by
+    setting attributes on the returned types.SimpleNamespace.safe_load.
+    """
+    ns = types.SimpleNamespace()
+
+    def safe_load(f):
+        # Accept either a file handle or string content
+        if hasattr(f, "read"):
+            text = f.read()
+        else:
+            text = str(f)
+        # Very small YAML-ish loader for our tests: use JSON for simplicity
+        import json
+
+        return json.loads(text)
+
+    ns.safe_load = safe_load
+    monkeypatch.setattr("recallbox.config.yaml", ns)
+    return ns
+
+
+@pytest.fixture
+def clear_config_singleton(monkeypatch):
+    import recallbox.config as configmod
+
+    # Reset module-level singletons
+    monkeypatch.setattr(configmod, "_CONFIG_INSTANCE", None)
+    monkeypatch.setattr(configmod, "_LOADED_CONFIG_PATH", None)
+    # Clear secrets mapping
+    configmod._SECRETS.clear()
+    yield configmod

@@ -18,7 +18,7 @@ import logging
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, List, Mapping as TypingMapping, cast
+from typing import Any, List, cast
 
 import chromadb
 # Settings import removed; using default client settings
@@ -74,7 +74,11 @@ class MemoryStore:
         persist_dir.mkdir(parents=True, exist_ok=True)
         os.chmod(str(persist_dir), 0o700)
 
-        self._client = cast(Any, chromadb.PersistentClient(path=str(persist_dir)))  # type: ignore[attr-defined]
+        # chromadb's client may not have precise stubs; cast to Any to satisfy mypy
+        self._client = cast(Any, chromadb.PersistentClient(path=str(persist_dir)))
+        # The collection API is dynamic; mypy would otherwise complain about attr-defined
+        # Keep a narrow ignore only where necessary.
+        # The chromadb client is dynamic; accept the runtime check without mypy ignore
         self._collection = self._client.get_or_create_collection(name=self._COLLECTION_NAME)
 
     async def add_documents(self, docs: List[Document]) -> None:
@@ -106,7 +110,7 @@ class MemoryStore:
             self._collection.upsert,
             ids=unique_ids,
             documents=contents,
-            metadatas=metadatas,  # type: ignore
+            metadatas=metadatas,
         )
 
         self._new_vec_counter += len(unique_docs)
@@ -198,7 +202,7 @@ class MemoryStore:
     async def _rebuild_index(self) -> None:
         """Rebuild the HNSW index by triggering a persist operation."""
         try:
-            await asyncio.to_thread(self._client.persist)  # type: ignore[attr-defined]
+            await asyncio.to_thread(self._client.persist)
         except AttributeError:
             logger.debug("Persist method not available on this ChromaDB client version")
 

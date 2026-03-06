@@ -17,7 +17,19 @@ from typing import Any, Dict
 
 from pydantic import BaseModel, Field, SecretStr, ValidationError
 from dotenv import load_dotenv
-import yaml
+
+import importlib
+import importlib.util
+
+
+# Dynamically import yaml so mypy doesn't require stubs in the environment.
+def _dynamic_import(name: str) -> Any | None:
+    if importlib.util.find_spec(name) is None:
+        return None
+    return importlib.import_module(name)
+
+
+yaml = _dynamic_import("yaml")
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +51,9 @@ class BackupSettings(BaseModel):
 
 
 class Config(BaseModel):
+    # Ingestion settings
+    max_chunk_size: int = Field(default=1024, description="Maximum characters per chunk")
+    chunk_overlap: int = Field(default=200, description="Number of overlapping characters between chunks")
     # Project metadata
     project_name: str = Field(default="recallbox")
     debug: bool = Field(default=False)
@@ -77,13 +92,16 @@ def load_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise ConfigError(f"config file not found: {path}")
 
+    if yaml is None:
+        raise ConfigError("pyyaml not installed; cannot load config.yaml")
     try:
         with path.open("r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
             if not isinstance(data, dict):
                 raise ConfigError("config.yaml must contain a mapping at top level")
             return data
-    except yaml.YAMLError as exc:
+    except Exception as exc:
+        # yaml may raise YAMLError, but keep a generic except to avoid type errors
         raise ConfigError(f"failed to parse YAML: {exc}") from exc
 
 

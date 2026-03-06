@@ -2,27 +2,14 @@
 requires = ["setuptools>=67.0", "setuptools_scm[toml]>=7.1"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.dynamic]
-readme = { file = ["README.md"] }
-
-[tool.setuptools.package-data]
-recallbox = ["py.typed"]
-
-[tool.setuptools_scm]
-fallback_version = "0.0.0-dev"
-write_to = "recallbox/_version.py"
-
-[tool.setuptools.packages.find]
-exclude = ["tests*", "docs*"]
-
 [project]
-authors = [{ "name" = "Rajat Arora" }]
-description = "A command-line second brain that remembers your memories"
-dynamic = ["version"]
-license = { "file" = "LICENSE" }
 name = "recallbox"
+description = "A command-line second brain that remembers your memories"
 readme = { file = "README.md", content-type = "text/markdown" }
+license = { "file" = "LICENSE" }
+authors = [{ name = "Rajat Arora" }]
 requires-python = ">=3.10"
+dynamic = ["version"]
 dependencies = [
   "SQLAlchemy",
   "aiosqlite",
@@ -31,6 +18,7 @@ dependencies = [
   "chromadb>=1.5.1",
   "fastapi",
   "httpx>=0.28.1",
+  "markdown>=3.10.2",
   "numpy>=2.2.6",
   "psycopg2-binary",
   "pydantic~=2.0",
@@ -39,6 +27,9 @@ dependencies = [
   "typer",
   "uvicorn[standard]",
 ]
+
+[project.scripts]
+recallbox = "recallbox.cli:app"
 
 [dependency-groups]
 dev = [
@@ -53,14 +44,27 @@ dev = [
   "pytest-asyncio",
   "pytest-cov",
   "pytest-pretty",
+  "reportlab>=4.4.10",
   "ruamel.yaml",
   "ruff",
   "tombi",
-  "uv"
+  "types-Markdown",
+  "types-PyYAML",
+  "uv",
 ]
 
-[project.scripts]
-recallbox = "recallbox.cli:app"
+[tool.setuptools.dynamic]
+readme = { file = ["README.md"] }
+
+[tool.setuptools.package-data]
+recallbox = ["py.typed"]
+
+[tool.setuptools_scm]
+fallback_version = "0.0.0-dev"
+write_to = "recallbox/_version.py"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "docs*"]
 
 [tool.ruff]
 exclude = [".venv", "./recallbox/_version.py"]
