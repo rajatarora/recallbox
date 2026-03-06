@@ -1,3 +1,5 @@
 """LLM helpers for recallbox."""
 
-__all__ = ["client"]
+from .client import OpenRouterClient
+
+__all__ = ["OpenRouterClient"]

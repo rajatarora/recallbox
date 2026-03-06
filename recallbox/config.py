@@ -54,6 +54,10 @@ class Config(BaseModel):
     # Ingestion settings
     max_chunk_size: int = Field(default=1024, description="Maximum characters per chunk")
     chunk_overlap: int = Field(default=200, description="Number of overlapping characters between chunks")
+    # File watcher settings
+    watcher_debounce_seconds: float = Field(default=2.0, description="Debounce time in seconds for file events")
+    enable_file_watcher: bool = Field(default=False, description="Enable the file watcher service")
+    memories_folder: Path = Field(default=Path("./memories"), description="Folder to watch for new files")
     # Project metadata
     project_name: str = Field(default="recallbox")
     debug: bool = Field(default=False)
@@ -65,6 +69,13 @@ class Config(BaseModel):
     )
     retrieval: RetrievalSettings = RetrievalSettings()
     backup: BackupSettings = BackupSettings()
+    # Path to the prompt template used by OpenRouterClient.evaluate_memory
+    # The file should contain placeholders `{user}` and `{assistant}`. Tests
+    # and local setups can leave this as the default path or override it in
+    # `config.yaml`.
+    memory_prompt_path: Path = Field(
+        default=Path("./memory_prompt.txt"), description="Path to memory evaluation prompt template"
+    )
 
 
 # Module-level singleton

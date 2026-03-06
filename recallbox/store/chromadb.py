@@ -18,12 +18,12 @@ import logging
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, List, cast
+from typing import Any, List, cast, Protocol, runtime_checkable
 
 import chromadb
 # Settings import removed; using default client settings
 
-from recallbox.llm.client import OpenRouterClient
+# Importing OpenRouterClient is unnecessary for runtime; keep typing only if needed.
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,11 @@ class Document(tuple):
         return cast(Mapping[str, Any], self[1])
 
 
+@runtime_checkable
+class EmbedClient(Protocol):
+    async def embed(self, texts: List[str]) -> List[Any]: ...
+
+
 class MemoryStore:
     """A persistent ChromaDB-backed memory store for embeddings."""
 
@@ -59,7 +64,7 @@ class MemoryStore:
     def __init__(
         self,
         persist_dir: Path,
-        embed_client: OpenRouterClient,
+        embed_client: EmbedClient,
     ) -> None:
         """Initialize the memory store.
 
@@ -68,7 +73,10 @@ class MemoryStore:
             embed_client: Client for generating embeddings via OpenRouter.
         """
         self._persist_dir = persist_dir
-        self._embed_client = embed_client
+        # Runtime: accept any object that implements the async `embed` API.
+        # Use `cast` to keep a narrow attribute type for linters while allowing
+        # tests to provide simple stubs.
+        self._embed_client: EmbedClient = cast(EmbedClient, embed_client)
         self._new_vec_counter = 0
 
         persist_dir.mkdir(parents=True, exist_ok=True)

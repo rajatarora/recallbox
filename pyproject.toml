@@ -26,6 +26,7 @@ dependencies = [
   "pydantic-settings[yaml]",
   "typer",
   "uvicorn[standard]",
+  "watchdog>=6.0.0",
 ]
 
 [project.scripts]
